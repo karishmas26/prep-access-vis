@@ -1,0 +1,272 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Financial Inaccessibility of PrEP </title>
+    
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+<link rel="preconnect" href="https://fonts.gstatic.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@100;300;400;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        h1, h3 {font-family:"Roboto"; line-height:0.2em;}
+        h1 {font-weight:300}
+        h3 {font-weight:400}
+        .subtitle {font-size: 22px; font-family:roboto; font-weight:100}
+        .body-text {font-size: 18px; font-family:roboto; font-weight:100}
+        rect{stroke:white; stroke-width:2}
+        text{font-family:roboto; font-weight:300}
+        line{stroke:white; opacity: 50%}
+        .toggle-button {
+            background-color: #ECA285;
+            border: 1px solid black;
+            font-family:roboto;
+            font-weight:300;
+            font-size:1em;
+            display:block;
+            width:100%;
+            margin: 0 auto;
+            padding:5px;
+            margin-top:20px;
+            border-radius:20px;
+            max-width:250px;
+            min-width:100px;
+        }
+    
+        #outermost {
+            display:flex;
+            align-items:center;
+    
+        }
+        #ratio-map {
+            flex: 5;
+        }
+        #text-and-buttons {
+            margin:20px;
+            flex:1;
+        }
+        
+        #ratio-buttons {
+            width:75%;
+            margin: 0 auto;
+        }
+        
+        #button-title {
+            text-align:center;
+            min-width:250px;
+        }
+    
+        
+        
+    </style>
+    
+</head>
+    
+<script src="https://d3js.org/d3.v6.min.js"></script>
+
+<script>
+
+    //read in States data
+    d3.json("us_states.json").then((states) => {
+        console.log(states.features);
+      
+    //create svg
+    const svg = d3.select("#ratio-map")
+            .attr("id", "prep")
+            .attr("width", 900)
+            .attr("height", 800)
+   
+    //text
+  const didExpand = svg.append("text")
+        .text("Expanded Medicaid")
+        .attr("x", 0)
+        .attr("y", 200)
+        .style("opacity", 0)
+  
+    const didNotExpand = svg.append("text")
+        .text("Did not expand Medicaid")
+        .attr("x", 0)
+        .attr("y", 600)
+        .style("opacity", 0)
+    
+    const yesDap = svg.append("text")
+        .text("Has a PrEP-DAP")
+        .attr("x", 0)
+        .attr("y", 200)
+        .style("opacity", 0)
+    
+    const noDap = svg.append("text")
+        .text("Does not have a PrEP-DAP")
+        .attr("x", 0)
+        .attr("y", 600)
+        .style("opacity", 0)
+    
+    
+    
+    //create path
+    const projection = d3.geoAlbersUsa().scale(800)
+    const pathGenerator = d3.geoPath().projection(projection);
+    
+    const statePaths = svg.selectAll(".state-path")
+        .data(states.features)
+        .join("path")
+        .attr("class", "state-path")
+        .attr("d", pathGenerator)
+        .attr("transform", "translate(-40, 125)")
+    
+    statePaths.attr("stroke", "white")
+        
+    //read in state PnR csv
+    
+        d3.csv('AIDSVu_State_PNR_2018.csv').then(statesCsv => {
+
+        //loop through json and csv
+        for (i=0; i<statesCsv.length; i++) {
+            let currentCsvState = statesCsv[i].state;
+            
+            let pnr2018 = +statesCsv[i].state_pnr;
+            let medicaid = statesCsv[i].med_expansion;
+            let pdap = statesCsv[i].dap;
+            let hiv18 = statesCsv[i].hiv2018;
+            
+            for(j = 0; j<states.features.length; j++) {
+                let currentJsonState = states.features[j].properties.NAME;
+                
+                if (currentJsonState == currentCsvState) {
+                    states.features[j].properties.state_pnr = pnr2018;
+                    states.features[j].properties.med_expansion = medicaid;
+                    states.features[j].properties.dap = pdap;
+                    states.features[j].properties.hiv2018 = hiv18;
+                }
+            }
+        }
+        console.log(states);    
+        
+        //color by medicaid expansion
+        
+            
+        //mouseover
+        statePaths.on("mouseover", function() {
+            d3.select(this).style("opacity", 0.5);
+            const thisData = d3.select(this).data()[0];
+            tooltip.style("opacity", 1);
+            stateNameSpan.text(thisData.properties.NAME);
+            spanPnr.text(thisData.properties.state_pnr);
+            spanHIV.text(thisData.properties.hiv2018); 
+        })
+            .on("mouseout", function(){
+                d3.select(this).style("opacity", 1)
+                tooltip.style("opacity",0)
+        })
+            .on("mousemove", function(event){
+            tooltip.style("left", d3.pointer(event)[0] + "px")
+            tooltip.style("top", d3.pointer(event)[1] + 150 + "px")
+
+        })
+            
+            //tooltip
+        const tooltip = d3.select("body").append("div")
+            .attr("id", "tooltip")
+            .style("border", "1px solid black")
+            .style("padding", "10px")
+            .style("position", "absolute")
+            .style("opacity", 0)
+            .style("background-color", "white")
+            .style("font-family", "roboto")
+            .style("font-weight", "300")
+            .style("pointer-events", "none");
+            
+            let ctStateName = tooltip.append("div")
+                    .text("State name: ")
+            
+            let ctPnr = tooltip.append("div")
+                    .text("PrEP-to-Need Ratio: ")
+            
+            let ctHIVdiag = tooltip.append("div")
+                    .text("New HIV Diagnoses in 2018: ")
+            
+            let stateNameSpan = ctStateName.append("span")
+                    .text("Virginia")
+            
+            let spanPnr = ctPnr.append("span")
+                    .text("Virginia")
+            
+            let spanHIV = ctHIVdiag.append("span")
+                    .text("Virginia")
+            
+    //color by medicaid expansion     
+    colorScale = d3.scaleLinear()
+            .domain([0, 15])
+            .range(["#ca0020", "#ffffbf"])
+    
+    statePaths.style("fill", d => colorScale(d.properties.state_pnr))
+         
+    //HANDLE BUTTONS
+        const medicaidButton = d3.select("button#medicaid")
+        const dapButton = d3.select("button#dap")
+        const clearButton = d3.select("button#clear")
+            
+            medicaidButton.on("click", function() {
+                console.log(statePaths)
+                statePaths.transition().duration(500).attr("transform", d=> d.properties.med_expansion == 0 ? "translate(-50, 350)" : "translate(-50,0)");
+                didExpand.transition().duration(500).style("opacity", 1)
+                didNotExpand.transition().duration(500).style("opacity", 1)
+                yesDap.transition().duration(500).style("opacity", 0)
+                noDap.transition().duration(500).style("opacity", 0)
+
+
+            })
+
+            clearButton.on("click", function() {
+                statePaths.transition().duration(500).attr("transform", "translate(-40, 125)")
+                didExpand.transition().duration(500).style("opacity", 0)
+                didNotExpand.transition().duration(500).style("opacity", 0)
+                yesDap.transition().duration(500).style("opacity", 0)
+                noDap.transition().duration(500).style("opacity", 0)
+                    })
+            
+            dapButton.on("click", function() {
+                console.log("Inside dap")
+                statePaths.transition().duration(500).attr("transform", d=> d.properties.dap == 0 ? "translate(-50, 350)" : "translate(-50,0)");
+                didExpand.transition().duration(500).style("opacity", 0)
+                didNotExpand.transition().duration(500).style("opacity", 0)
+                yesDap.transition().duration(500).style("opacity", 1)
+                noDap.transition().duration(500).style("opacity", 1)
+
+            })
+            
+        
+        })
+    
+   
+        
+        })
+    
+     </script>
+    
+    <body>
+    
+    <h1>PrEP Financial Inaccessibility</h1>
+    <p class  = "subtitle">2018 PrEP Utilization Relative to HIV Diagnosis (by state) </p>
+ 
+    <p class = "body-text" id = "med_text"> U.S. states in 2018 that expanded Medicaid had a PnR that was more than <b>two times higher</b> (6.6) than states that did not expand Medicaid (3.1), indicating fewer PrEP users relative to the need for PrEP in non-Medicaid expansion states.</p>
+
+    <p class = "body-text" id = "dap_text">Similarly, states with a PrEP-DAP had nearly <b>double the rate of PrEP use (100.6 PrEP users per 100,000 population) and double the PrEP-to-Need Ratio (6.4)</b> relative to states without such programs (51.9 PrEP users per 100,000 population and 3.9 PnR)</p>
+
+    
+    <div id = "outermost">
+        <svg id = "ratio-map"></svg>
+        <div id = "text-and-buttons">    
+            <h3 id = "button-title">Click to show states with:</h3>
+            <div id = "ratio-buttons">    
+                <button class = "toggle-button" id = "medicaid">Medicaid Expansion</button>
+                <button class = "toggle-button" id = "dap">PrEP drug assistance programs (DAP)</button>
+                <button class = "toggle-button" id = "clear">Clear all</button>
+            </div>
+        </div>
+    </div> 
+        
+
+    </body>
+    
+</html>

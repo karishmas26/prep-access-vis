@@ -1,0 +1,394 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Social Determinants of Health - PrEP</title>
+    
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+<link rel="preconnect" href="https://fonts.gstatic.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@100;300;400;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        h1, h3 {font-family:"Roboto"; line-height:0.2em;}
+        h1 {font-weight:300}
+        h3 {font-weight:400}
+        .subtitle {font-size: 20px; font-family:roboto; font-weight:100}
+        rect{stroke:white; stroke-width:2}
+        text{stroke:white; font-family:roboto}
+        line{stroke:white; opacity: 50%}
+        .toggle-button {
+
+            border: 1px solid black;
+            font-family:roboto;
+            font-weight:300;
+            font-size:1em;
+            display:block;
+            width:100%;
+            margin: 0 auto;
+            padding:5px;
+            margin-top:20px;
+            border-radius:20px;
+            max-width:250px
+        }
+        
+        button.active {
+            background-color:#134e13;
+            color:white;
+            font-weight:800;
+             
+        }
+        
+        button.inactive {
+            background-color:white;
+            color:black;
+            font-weight:300;
+        }
+    
+        #outermost-county {
+            display:flex;
+            align-items:center;
+
+    
+        }
+        #ratio-map {
+            flex: 5;
+        }
+        #text-and-buttons-county {
+            margin:20px;
+            flex:1;
+        }
+        
+        #ratio-buttons-county {
+            width:75%;
+            margin: 0 auto;
+        }
+        
+        #button-title-county {
+            text-align:center;
+        }
+    
+        
+        
+    </style>
+    
+</head>
+    
+<script src="https://d3js.org/d3.v6.min.js"></script>
+
+<script>
+
+        
+    //insurance, education, poverty, pnr
+    let currentDeterminant = "insurance"
+    
+    //pct_uninsured, pct_poverty, pct_hsed, county_pnr
+    const detMap = {insurance:'pct_uninsured', education:'pct_hsed', poverty:'pct_poverty', pnr:'county_pnr', prevalence: 'prev_rate', black_prevalence: 'black_prev_rate'};
+    
+    //read in States data
+    d3.json("us_counties.json").then((counties) => {
+        console.log(counties.features);
+        
+    
+    for (i=0; i<counties.features.length; i++) {
+        counties.features[i].properties['fips'] = counties.features[i].properties.GEO_ID.slice(9)
+    }
+    console.log(counties)
+
+              
+    //create svg
+    const svg = d3.select("#county-map")
+            .attr("id", "soh")
+            .attr("width", 900)
+            .attr("height", 800)
+    
+        //create path
+    const projection = d3.geoAlbersUsa().scale(800)
+    const pathGenerator = d3.geoPath().projection(projection);
+    
+
+    
+    const countyPaths = svg.selectAll(".county-path")
+        .data(counties.features)
+        .join("path")
+        .attr("class", "county-path")
+        .attr("d", pathGenerator)
+        .attr("transform", "translate(-40, 125)")
+    
+    countyPaths.attr("stroke", "white")
+    countyPaths.attr("stroke-width", 0.3)
+    
+    d3.csv('AIDSVu_County_SDOH_2018.csv').then(countiesCsv => {
+
+
+        //loop through json and csv
+        for (i=0; i<countiesCsv.length; i++) {
+            let currentCsvCounty = countiesCsv[i].geoid;
+            
+            let insurance = +countiesCsv[i].pct_uninsured;
+            let poverty = +countiesCsv[i].pct_poverty;
+            let hs_educ = +countiesCsv[i].pct_hsed;
+            let syph = +countiesCsv[i].syphillis_rate;
+            let countypnr = +countiesCsv[i].county_pnr;
+            let prevalence = +countiesCsv[i].prev_rate;
+            let black_prevalence = +countiesCsv[i].black_prev_rate;
+            let countyname = countiesCsv[i].county;
+            let state = countiesCsv[i].state;
+            
+            for(j = 0; j<counties.features.length; j++) {
+                let currentJsonCounty = counties.features[j].properties.fips;
+                
+                if (currentJsonCounty == currentCsvCounty) {
+                    counties.features[j].properties.pct_uninsured = insurance;
+                    counties.features[j].properties.pct_poverty = poverty;
+                    counties.features[j].properties.pct_hsed = hs_educ;
+                    counties.features[j].properties.syphillis_rate = syph;
+                    counties.features[j].properties.county_pnr = countypnr;
+                    counties.features[j].properties.prev_rate = prevalence;
+                    counties.features[j].properties.black_prev_rate = black_prevalence;
+                    counties.features[j].properties.county = countyname;
+                    counties.features[j].properties.state = state;
+
+                }
+            }
+        }
+        console.log(counties); 
+        
+        //color by uninsured
+        
+           //color by pct uninsured    
+    colorScaleInsurance = d3.scaleLinear()
+            .domain([0, 33])
+            .range(["#ffeb49", "#134e13"])
+    
+    countyPaths.style("fill", d => colorScaleInsurance(d.properties.pct_uninsured))
+        
+    //mouseover
+        countyPaths.on("mouseover", function() {
+            d3.select(this).style("opacity", 0.5);
+            const thisData = d3.select(this).data()[0];
+            tooltip.style("opacity", 1);
+            countyNameSpan.text(thisData.properties.county);
+            spanCountySt.text(thisData.properties.state);
+            spanUninsured.text(thisData.properties[detMap[currentDeterminant]] + "%"); 
+            
+        }) 
+            .on("mouseout", function(){
+                d3.select(this).style("opacity", 1)
+                tooltip.style("opacity",0)
+        })
+            .on("mousemove", function(event){
+            tooltip.style("left", d3.pointer(event)[0] + "px")
+            tooltip.style("top", d3.pointer(event)[1] + 150 + "px")
+        })
+
+        //tooltip
+        const tooltip = d3.select("body").append("div")
+            .attr("id", "tooltip")
+            .style("border", "1px solid black")
+            .style("padding", "10px")
+            .style("position", "absolute")
+            .style("opacity", 1)
+            .style("background-color", "white")
+            .style("font-family", "roboto")
+            .style("font-weight", "300")
+            .style("pointer-events", "none");
+            
+            let ctCountyName = tooltip.append("div")
+                    .text("County name: ")
+            
+            let ctCountyState = tooltip.append("div")
+                    .text("State: ")
+            
+            let ctUninsuredDiv = tooltip.append("div")
+            
+            let ctUninsured = ctUninsuredDiv.append("span")
+                    .text("Percent Uninsurance: ")
+            
+            let countyNameSpan = ctCountyName.append("span")
+                    .text("Virginia")
+            
+            let spanCountySt = ctCountyState.append("span")
+                    .text("Virginia")
+            
+            let spanUninsured = ctUninsuredDiv.append("span")
+                    .text("Virginia")
+            
+            
+            
+            
+    //HANDLE BUTTONS
+        const educationButton = d3.select("button#hsed")
+        const uninsuranceButton = d3.select("button#uninsurance")
+        const povertyButton = d3.select("button#poverty")
+        const PnrButton = d3.select("button#pnr")
+        const PrevalenceButton = d3.select("button#prevalence")
+        const BlackPrevalenceButton = d3.select("button#black_prevalence")
+
+
+        const clearCountyButton = d3.select("button#clear-county").style("display", "none")
+        
+        const resetButtonStyles = () => {
+            educationButton.attr("class", "toggle-button inactive")
+            uninsuranceButton.attr("class", "toggle-button inactive")
+            povertyButton.attr("class", "toggle-button inactive")
+            PnrButton.attr("class", "toggle-button inactive")
+            PrevalenceButton.attr("class", "toggle-button inactive")
+            BlackPrevalenceButton.attr("class", "toggle-button inactive")
+        }
+        
+            const eduMin = 70;
+            const povMax = 35;
+            const pnrMax = 20;
+            const prevMax = 1000;
+            const blackPrevMax = 3000;
+
+        
+            babyEduScale = d3.scaleLinear()
+                .domain([eduMin, 100])
+                .range(["#ffeb49", "#134e13"])
+            
+            babyPovScale =  d3.scaleLinear()
+                .domain([0, povMax])
+                .range(["#ffeb49", "#134e13"])
+        
+            babyPnrScale =  d3.scaleLinear()
+                .domain([0, pnrMax])
+                .range(["#ffeb49", "#134e13"])
+        
+            babyPrevScale =  d3.scaleLinear()
+                .domain([0, prevMax])
+                .range(["#ffeb49", "#134e13"])
+        
+            babyBlackPrevScale =  d3.scaleLinear()
+                .domain([0, blackPrevMax])
+                .range(["#ffeb49", "#134e13"])        
+        
+        
+            const colorScaleEdu = (val) => {
+                if (val >= eduMin) {
+                    return babyEduScale(val)
+                } else {
+                    return "#ffeb49"
+                }
+            }
+        
+            const colorScalePov = (val) => {
+                if (val <= povMax) {
+                    return babyPovScale(val)
+                } else {
+                    return "#134e13"
+                }
+            }
+        
+            const colorScalePnR = (val) => {
+                if (val <= pnrMax) {
+                    return babyPnrScale(val)
+                } else {
+                    return "#134e13"
+                }
+            }
+            
+        
+            const colorScalePrev = (val) => {
+                if (val <= prevMax) {
+                    return babyPrevScale(val)
+                } else {
+                    return "#134e13"
+                }
+            }
+            
+            const colorScaleBlackPrev = (val) => {
+                if (val <= blackPrevMax) {
+                    return babyBlackPrevScale(val)
+                } else {
+                    return "#134e13"
+                }
+            }            
+        
+            //Pre-fill insurance button
+            uninsuranceButton.attr("class", "toggle-button active")
+            educationButton.attr("class", "toggle-button inactive")
+            povertyButton.attr("class", "toggle-button inactive")
+            PnrButton.attr("class", "toggle-button inactive")
+            PrevalenceButton.attr("class", "toggle-button inactive")
+            BlackPrevalenceButton.attr("class", "toggle-button inactive")
+        
+            educationButton.on("click", function() {
+                currentDeterminant = "education"
+                
+                ctUninsured.text("% completed HS degree: ")
+                
+                resetButtonStyles()
+                educationButton.attr("class", "toggle-button active")
+                console.log(countyPaths)
+                countyPaths.transition().duration(500).style("fill", d=> colorScaleEdu(d.properties.pct_hsed))
+            })
+            
+            povertyButton.on("click", function() {
+                currentDeterminant = "poverty"
+                
+                ctUninsured.text("% in poverty: ")
+                resetButtonStyles()
+                povertyButton.attr("class", "toggle-button active")
+                console.log(countyPaths)
+                countyPaths.transition().duration(500).style("fill", d=> colorScalePov(d.properties.pct_poverty))
+            })
+        
+            uninsuranceButton.on("click", function() {
+                currentDeterminant = "insurance"
+                ctUninsured.text("% uninsured: ")
+                resetButtonStyles()
+                uninsuranceButton.attr("class", "toggle-button active")
+                console.log(countyPaths)
+                countyPaths.transition().duration(500).style("fill", d=> colorScaleInsurance(d.properties.pct_uninsured))
+            })
+        
+            PrevalenceButton.on("click", function() {
+                currentDeterminant = "prevalence"
+                ctUninsured.text("HIV prevalence rate: ")
+                resetButtonStyles()
+                PrevalenceButton.attr("class", "toggle-button active")
+                console.log(countyPaths)
+                countyPaths.transition().duration(500).style("fill", d=> colorScalePrev(d.properties.prev_rate))
+                console.log(PrevalenceButton)
+            })    
+        
+           BlackPrevalenceButton.on("click", function() {
+                currentDeterminant = "black_prevalence"
+                ctUninsured.text("Black HIV prevalence rate: ")
+                resetButtonStyles()
+                BlackPrevalenceButton.attr("class", "toggle-button active")
+                console.log(countyPaths)
+                countyPaths.transition().duration(500).style("fill", d=> colorScaleBlackPrev(d.properties.black_prev_rate))
+            })         
+                
+        })
+
+        })
+        
+    
+     </script>
+    
+    <body>
+    
+    <h1>Social Determinants of Health - PrEP</h1>
+    <p class  = "subtitle">Prototype</p>
+    <div id = "outermost-county">
+        <svg id = "county-map"></svg>
+        <div id = "text-and-buttons-county">    
+            <h3 id = "button-title-county">Click to show determinants by:</h3>
+            <div id = "ratio-buttons-county">    
+                <button class = "toggle-button" id = "uninsurance">Uninsurance Rates</button>
+                <button class = "toggle-button" id = "hsed">High School Education</button>
+                <button class = "toggle-button" id = "poverty">Percent in Poverty</button>
+                <button class = "toggle-button" id = "prevalence">County HIV Prevalence Rate</button>
+                <button class = "toggle-button" id = "black_prevalence">Black HIV Prevalence Rate</button>
+                <button class = "toggle-button" id = "clear-county">Clear all</button>
+            </div>
+        </div>
+    </div> 
+        
+
+    </body>
+    
+</html>
